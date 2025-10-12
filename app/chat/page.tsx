@@ -15,21 +15,35 @@ export default function ChatPage() {
     {
       id: crypto.randomUUID(),
       role: "assistant",
-      content: "Hey! I’m your AI guide. Ask me anything about the community.",
+      content: "Hey! I’m your AI guide powered by Gemini 2.5-flash. To get started, please configure your Gemini API key in the .env file. Once set up, ask me anything about the community!",
       at: Date.now(),
     },
   ])
-  const listRef = useRef<HTMLDivElement | null>(null)
-  const endRef = useRef<HTMLDivElement | null>(null)
+  const [isApiConfigured, setIsApiConfigured] = useState<boolean | null>(null)
   const [showScroll, setShowScroll] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
+  const listRef = useRef<HTMLDivElement>(null)
+  const endRef = useRef<HTMLDivElement>(null)
+  
+  // Check API configuration status (client-side check for API key)
+  useEffect(() => {
+    // For now, we'll assume it's not configured until the user sets up the API key
+    // In a real app, you might want to check this server-side
+    setIsApiConfigured(null) // Unknown status initially
+  }, [])
 
-  const { trigger, isMutating } = useSWRMutation("/api/chat", async (url, { arg }: { arg: { messages: Msg[] } }) => {
+  const { trigger, isMutating, error } = useSWRMutation("/api/chat", async (url, { arg }: { arg: { messages: Msg[] } }) => {
     const res = await fetch(url, {
       method: "POST",
       body: JSON.stringify(arg),
       headers: { "Content-Type": "application/json" },
     })
+    
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({ reply: "Configuration required" }))
+      throw new Error(errorData.reply || `API error: ${res.status}`)
+    }
+    
     return (await res.json()) as { reply: string }
   })
 
@@ -53,9 +67,22 @@ export default function ChatPage() {
     const you: UIMsg = { id: crypto.randomUUID(), role: "user", content: text, at: Date.now() }
     const next = [...messages, you]
     setMessages(next)
-    const { reply } = await trigger({ messages: next.map(({ role, content }) => ({ role, content })) })
-    const ai: UIMsg = { id: crypto.randomUUID(), role: "assistant", content: reply, at: Date.now() }
-    setMessages((cur) => [...cur, ai])
+    
+    try {
+      const { reply } = await trigger({ messages: next.map(({ role, content }) => ({ role, content })) })
+      const ai: UIMsg = { id: crypto.randomUUID(), role: "assistant", content: reply, at: Date.now() }
+      setMessages((cur) => [...cur, ai])
+    } catch (error) {
+      console.error("Chat error:", error)
+      // Add error message to chat
+      const errorMsg: UIMsg = { 
+        id: crypto.randomUUID(), 
+        role: "assistant", 
+        content: "Sorry, I'm having trouble responding right now. Please try again.", 
+        at: Date.now() 
+      }
+      setMessages((cur) => [...cur, errorMsg])
+    }
   }
 
   function onClear() {
@@ -86,14 +113,14 @@ export default function ChatPage() {
             <div className="hidden md:flex items-center gap-2">
               <Badge variant="outline-strong" size="sm" className="uppercase tracking-wide">
                 <Sparkles className="h-4 w-4" aria-hidden />
-                gpt-5-mini
+                gemini-2.5-flash
               </Badge>
               <Badge variant="outline-strong" size="sm" className="uppercase tracking-wide">
                 <span
-                  className="inline-block h-1.5 w-1.5 rounded-full bg-[color:var(--color-primary)] mr-1"
+                  className="inline-block h-1.5 w-1.5 rounded-full bg-orange-500 mr-1"
                   aria-hidden
                 />
-                Live
+                Setup Required
               </Badge>
               <Badge variant="outline-strong" size="sm" className="uppercase tracking-wide">
                 <ShieldCheck className="h-4 w-4" aria-hidden />
@@ -112,6 +139,28 @@ export default function ChatPage() {
           </button>
         </div>
       </div>
+
+      {/* Setup Instructions */}
+      {/* <div className="rounded-lg border border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/20 p-3 mb-3">
+        <div className="flex items-start gap-2">
+          <div className="mt-0.5 text-orange-600 dark:text-orange-400">
+            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-medium text-orange-800 dark:text-orange-200">Setup Required</h3>
+            <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
+              To enable AI chat functionality, please configure your Gemini API key:
+            </p>
+            <ol className="text-sm text-orange-700 dark:text-orange-300 mt-2 space-y-1 list-decimal list-inside">
+              <li>Get your API key from <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline hover:no-underline">Google AI Studio</a></li>
+              <li>Add <code className="bg-orange-100 dark:bg-orange-900 px-1 py-0.5 rounded text-xs">GOOGLE_GENERATIVE_AI_API_KEY=your_key_here</code> to your .env file</li>
+              <li>Restart your development server</li>
+            </ol>
+          </div>
+        </div>
+      </div> */}
 
       <div className="relative grid h-[70dvh] grid-rows-[1fr_auto] rounded-2xl border glass-surface">
         <div
