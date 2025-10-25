@@ -2,50 +2,65 @@
 
 import type React from "react"
 
-import { useEffect, useMemo, useRef, useState } from "react"
-import Link from "next/link"
+import { ShieldCheck, Lock, CheckCircle2, AlertTriangle, Users, Trophy, Bot } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { ShieldCheck, Lock, CheckCircle2, Bot, Users, Trophy, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/hooks/use-auth"
 
-type ButtonState = "default" | "hover" | "loading" | "success" | "error"
+type ButtonState = "default" | "loading" | "success" | "error"
 
 export default function AuthPage() {
   const [buttonState, setButtonState] = useState<ButtonState>("default")
-  const [simulating, setSimulating] = useState(false)
+  const [isSigningIn, setIsSigningIn] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
+  const { user } = useAuth()
 
-  // Simulate OAuth flow
+  // Redirect if already authenticated
   useEffect(() => {
-    let t1: any
-    let t2: any
-    if (buttonState === "loading") {
-      setSimulating(true)
-      // simulate progress and success
-      t1 = setTimeout(() => {
-        setButtonState("success")
-        toast({
-          title: "Welcome back!",
-          description: "Authentication succeeded.",
-        })
-      }, 1600)
-      t2 = setTimeout(() => {
-        router.push("/") // navigate to dashboard placeholder
-      }, 2500)
+    if (user) {
+      router.push("/")
     }
-    return () => {
-      clearTimeout(t1)
-      clearTimeout(t2)
-      setSimulating(false)
-    }
-  }, [buttonState, router, toast])
+  }, [user, router])
 
-  // Demo controls for states
-  const setDemo = (s: ButtonState) => {
-    setButtonState(s)
+  const handleGoogleSignIn = async () => {
+    try {
+      setButtonState("loading")
+      setIsSigningIn(true)
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+
+      if (error) {
+        console.error("OAuth error:", error)
+        setButtonState("error")
+        toast({
+          title: "Authentication failed",
+          description: error.message,
+          variant: "destructive",
+        })
+      }
+      // Success will redirect, so no need to handle success state
+    } catch (error) {
+      console.error("Unexpected error:", error)
+      setButtonState("error")
+      toast({
+        title: "Authentication failed",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSigningIn(false)
+    }
   }
 
   return (
@@ -62,31 +77,10 @@ export default function AuthPage() {
       <section className={cn("relative flex items-center justify-center py-12 px-6 bg-background")}>
         <AuthCard
           state={buttonState}
-          onHover={(h) => setButtonState(h ? "hover" : "default")}
-          onClick={() => {
-            if (buttonState === "loading") return
-            // Randomize success / error for demo when not using controls
-            const willFail = false
-            if (willFail) {
-              setButtonState("loading")
-              setTimeout(() => {
-                setButtonState("error")
-              }, 1300)
-            } else {
-              setButtonState("loading")
-            }
-          }}
+          onClick={handleGoogleSignIn}
+          isLoading={isSigningIn}
           onRetry={() => setButtonState("default")}
         />
-
-        {/* Demo state toggles */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
-          <DemoChip label="Default" active={buttonState === "default"} onClick={() => setDemo("default")} />
-          <DemoChip label="Hover" active={buttonState === "hover"} onClick={() => setDemo("hover")} />
-          <DemoChip label="Loading" active={buttonState === "loading"} onClick={() => setDemo("loading")} />
-          <DemoChip label="Success" active={buttonState === "success"} onClick={() => setDemo("success")} />
-          <DemoChip label="Error" active={buttonState === "error"} onClick={() => setDemo("error")} />
-        </div>
       </section>
     </main>
   )
@@ -197,19 +191,16 @@ function Feature({
 
 function AuthCard({
   state,
-  onHover,
   onClick,
+  isLoading,
   onRetry,
 }: {
   state: ButtonState
-  onHover: (hover: boolean) => void
   onClick: () => void
+  isLoading: boolean
   onRetry: () => void
 }) {
-  const isLoading = state === "loading"
-  const isSuccess = state === "success"
   const isError = state === "error"
-  const isHover = state === "hover"
 
   return (
     <div
@@ -219,8 +210,6 @@ function AuthCard({
       )}
       data-float="true"
       aria-live="polite"
-      onMouseEnter={() => onHover(true)}
-      onMouseLeave={() => onHover(false)}
     >
       {/* Header */}
       <div className="flex items-center gap-3 mb-6 opacity-0 animate-in fade-in duration-300">
@@ -234,7 +223,7 @@ function AuthCard({
       </div>
 
       {/* Google Sign-In Button */}
-      <GoogleButton state={state} onClick={onClick} isHover={isHover} />
+      <GoogleButton state={state} onClick={onClick} isLoading={isLoading} />
 
       {/* Divider */}
       <div className="relative my-6">
@@ -306,17 +295,15 @@ function AuthCard({
 function GoogleButton({
   state,
   onClick,
-  isHover,
+  isLoading,
 }: {
   state: ButtonState
   onClick: () => void
-  isHover?: boolean
+  isLoading: boolean
 }) {
   const btnRef = useRef<HTMLButtonElement | null>(null)
   const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([])
-  const isDisabled = state === "loading" || state === "success"
-  const isLoading = state === "loading"
-  const isSuccess = state === "success"
+  const isDisabled = state === "loading" || state === "success" || isLoading
 
   const onButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (!btnRef.current || isDisabled) return
@@ -347,11 +334,6 @@ function GoogleButton({
           "shadow-[0_8px_30px_rgba(0,0,0,0.08)]",
           "transition-all duration-200 will-change-transform select-none",
           isLoading ? "cursor-progress" : "cursor-pointer",
-          isSuccess
-            ? "scale-[0.995]"
-            : isHover
-              ? "translate-y-[-2px] scale-[1.01] shadow-[0_12px_40px_rgba(0,0,0,0.12)]"
-              : "hover:-translate-y-0.5 hover:scale-[1.01]",
           isDisabled && "opacity-90",
         )}
       >
@@ -385,17 +367,8 @@ function GoogleButton({
 
         {/* Content */}
         <div className="relative z-10 flex items-center justify-center gap-3 h-full px-6">
-          {!isSuccess ? (
-            <>
-              <GoogleG />
-              <span className="font-semibold">{isLoading ? "Connecting securely..." : "Continue with Google"}</span>
-            </>
-          ) : (
-            <div className="flex items-center gap-2 text-[color:var(--brand-primary-start)]">
-              <CheckCircle2 className="h-6 w-6 animate-in zoom-in-95 fade-in" />
-              <span className="font-semibold">Success</span>
-            </div>
-          )}
+          <GoogleG />
+          <span className="font-semibold">{isLoading ? "Connecting securely..." : "Continue with Google"}</span>
         </div>
 
         {/* Spinner / Progress */}
@@ -416,9 +389,6 @@ function GoogleButton({
           </>
         )}
       </button>
-
-      {/* Success confetti */}
-      {isSuccess && <ConfettiBurst />}
     </div>
   )
 }

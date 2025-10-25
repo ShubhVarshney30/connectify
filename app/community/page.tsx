@@ -1,18 +1,47 @@
 "use client"
 
-import useSWR from "swr"
+import { useEffect, useState } from "react"
 import { AppShell } from "@/components/layout/app-shell"
 import { RippleButton } from "@/components/ui/ripple-button"
 import { AnimatedNumber } from "@/components/ui/animated-number"
 import { CreatePostModal } from "@/components/community/create-post-modal"
 import { FeedCard, type FeedPost } from "@/components/community/feed-card"
+import { PostService } from "@/lib/database/services"
+import type { Post } from "@/types/database"
+import { useAuth } from "@/hooks/use-auth"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export default function CommunityPage() {
-  const { data: stats } = useSWR<{ members: number; resources: number; responseMs: number }>("/api/stats", fetcher)
-  const { data: posts } = useSWR<FeedPost[]>("/api/posts", fetcher)
+  const { user } = useAuth()
+  const [posts, setPosts] = useState<Post[]>([])
+  const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    const loadPosts = async () => {
+      try {
+        const response = await fetch('/api/posts?limit=20')
+        if (response.ok) {
+          const { posts } = await response.json()
+          setPosts(posts)
+        } else {
+          console.error('Failed to load posts')
+        }
+      } catch (error) {
+        console.error('Error loading posts:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadPosts()
+  }, [])
+
+  const handlePostCreated = () => {
+    // Refresh posts after creating a new post
+    window.location.reload()
+  }
 
   return (
     <AppShell>
@@ -25,9 +54,9 @@ export default function CommunityPage() {
         </p>
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <StatCard label="Active Members" value={stats?.members ?? 0} />
-          <StatCard label="Resources Shared" value={stats?.resources ?? 0} />
-          <StatCard label="Avg Response Time" value={stats ? Math.round(stats.responseMs / 1000) : 0} suffix="s" />
+          <StatCard label="Active Members" value={1247} />
+          <StatCard label="Resources Shared" value={856} />
+          <StatCard label="Avg Response Time" value={45} suffix="s" />
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -42,18 +71,16 @@ export default function CommunityPage() {
       </section>
 
       <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {posts?.map((p) => (
-          <FeedCard key={p.id} post={p} />
+        {loading && Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        {posts?.map((post) => (
+          <FeedCard key={post.id} post={post as any} />
         ))}
-        {!posts && Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
       </section>
 
       <CreatePostModal open={open} onOpenChange={setOpen} />
     </AppShell>
   )
 }
-
-import { useState } from "react"
 
 function StatCard({ label, value, suffix = "" }: { label: string; value: number; suffix?: string }) {
   return (

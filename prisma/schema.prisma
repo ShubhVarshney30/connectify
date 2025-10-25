@@ -1,0 +1,155 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Profile {
+  id               String   @id @db.Uuid
+  email            String   @unique @db.Text
+  full_name        String?  @db.Text
+  avatar_url       String?  @db.Text
+  bio              String?  @db.Text
+  location         String?  @db.Text
+  website          String?  @db.Text
+  phone            String?  @db.Text
+  date_of_birth    DateTime? @db.Date
+  is_verified      Boolean  @default(false)
+  verification_level String @default("basic") @db.Text
+  points           Int      @default(0)
+  badges           Json     @default("[]") @db.JsonB
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  posts            Post[]
+  comments         Comment[]
+  likes            Like[]
+  reports          Report[]
+  user_badges      UserBadge[]
+
+  @@map("profiles")
+}
+
+model Post {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  author_id     String   @db.Uuid
+  title         String   @db.Text
+  content       String   @db.Text
+  category      String   @default("general") @db.Text
+  tags          String[] @default([])
+  image_url     String?  @db.Text
+  location      String?  @db.Text
+  is_urgent     Boolean  @default(false)
+  is_featured   Boolean  @default(false)
+  status        String   @default("active") @db.Text
+  likes_count   Int      @default(0)
+  comments_count Int     @default(0)
+  shares_count  Int      @default(0)
+  views_count   Int      @default(0)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  author        Profile    @relation(fields: [author_id], references: [id], onDelete: Cascade)
+  comments      Comment[]
+  likes         Like[]
+  reports       Report[]
+
+  @@map("posts")
+}
+
+model Comment {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id     String   @db.Uuid
+  author_id   String   @db.Uuid
+  parent_id   String?  @db.Uuid
+  content     String   @db.Text
+  likes_count Int      @default(0)
+  is_flagged  Boolean  @default(false)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  post        Post      @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  author      Profile   @relation(fields: [author_id], references: [id], onDelete: Cascade)
+  parent      Comment?  @relation("CommentReplies", fields: [parent_id], references: [id], onDelete: Cascade)
+  replies     Comment[] @relation("CommentReplies")
+  likes       Like[]
+  reports     Report[]
+
+  @@map("comments")
+}
+
+model Like {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  post_id    String?  @db.Uuid
+  comment_id String?  @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  user       Profile  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  post       Post?    @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  comment    Comment? @relation(fields: [comment_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, post_id])
+  @@unique([user_id, comment_id])
+  @@map("likes")
+}
+
+model Report {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporter_id String   @db.Uuid
+  post_id     String?  @db.Uuid
+  comment_id  String?  @db.Uuid
+  reason      String   @db.Text
+  status      String   @default("pending") @db.Text
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  reporter    Profile  @relation(fields: [reporter_id], references: [id], onDelete: Cascade)
+  post        Post?    @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  comment     Comment? @relation(fields: [comment_id], references: [id], onDelete: Cascade)
+
+  @@map("reports")
+}
+
+model Badge {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String   @db.Text
+  description     String?  @db.Text
+  icon            String?  @db.Text
+  category        String   @default("general") @db.Text
+  rarity          String   @default("common") @db.Text
+  points_required Int      @default(0)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  user_badges     UserBadge[]
+
+  @@map("badges")
+}
+
+model UserBadge {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id   String   @db.Uuid
+  badge_id  String   @db.Uuid
+  progress  Int      @default(0)
+  earned_at DateTime? @db.Timestamptz(6)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  user      Profile  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  badge     Badge    @relation(fields: [badge_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, badge_id])
+  @@map("user_badges")
+}

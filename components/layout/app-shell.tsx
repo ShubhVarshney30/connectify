@@ -31,7 +31,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             aria-label="Primary navigation"
           >
             <div className="p-4">
-              <Link href="/community" className="flex items-center gap-2">
+              <Link href="/" className="flex items-center gap-2">
                 <div className="h-9 w-9 rounded-xl bg-gradient-to-r from-[#0066FF] to-[#00BFFF] shadow-lg" />
                 <div className="text-sm font-semibold">
                   Connect<span className="text-primary"> & Thrive</span>
@@ -87,7 +87,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {/* Top bar (mobile) */}
             <div className="md:hidden sticky top-0 z-10 -mx-4 px-4 py-3 border-b bg-background backdrop-blur-xl">
               <div className="flex items-center justify-between">
-                <Link href="/community" className="flex items-center gap-2">
+                <Link href="/" className="flex items-center gap-2">
                   <div className="h-8 w-8 rounded-lg bg-gradient-to-r from-[#0066FF] to-[#00BFFF]" />
                   <div className="text-sm font-semibold">Connect & Thrive</div>
                 </Link>
